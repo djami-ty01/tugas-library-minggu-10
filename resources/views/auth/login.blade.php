@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <form method="POST" action="{{ route('login.process') }}">
+    <form method="POST" action="{{ route('login') }}">
         @csrf
 
         <div>

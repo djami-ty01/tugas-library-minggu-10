@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'receipt' => [
+        'printer' => env('RECEIPT_PRINTER', 'MP80MPro'),
+        'enabled' => env('RECEIPT_PRINT_ENABLED', true),
+    ],
+
 ];
