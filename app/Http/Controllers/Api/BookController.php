@@ -19,17 +19,17 @@ class BookController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'status' => 'required|in:available,unavailable',
-        ]);
+  public function store(Request $request)
+{
+    $validated = $request->validate([
+        'title'       => 'required|string|max:255',
+        'description' => 'required|string',
+        'status'      => 'required|integer',
+    ]);
 
-        $book = Book::create($validated);
-        return response()->json($book, 201);
-    }
+    $book = Book::create($validated);
+    return response()->json($book, 201);
+}
 
     /**
      * Display the specified resource.

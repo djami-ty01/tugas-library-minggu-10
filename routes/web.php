@@ -62,6 +62,10 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/logout', [LoginController::class, 'logout'])
         ->name('logout');
+
+        Route::get('/login', function () {
+    return view('welcome'); // atau halaman login Anda
+})->name('login');
 });
 
 require __DIR__.'/auth.php';

@@ -9,16 +9,16 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void
-    {
-        Schema::create('books', function (Blueprint $table) {
-            $table->id();
-            $table->string('title');
-            $table->text('description')->nullable();
-            $table->integer('status')->unsigned()->nullable(); 
-            $table->timestamps();
-        });
-    }
+   public function up(): void
+{
+    Schema::create('books', function (Blueprint $table) {
+        $table->id();
+        $table->string('title');
+        $table->text('description');
+        $table->integer('status');
+        $table->timestamps();
+    });
+}
 
     /**
      * Reverse the migrations.
