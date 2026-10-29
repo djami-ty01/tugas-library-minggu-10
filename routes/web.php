@@ -1,12 +1,13 @@
 <?php
 
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\FileUploadController; // <-- PERBAIKAN 1: Impor Controller Upload
 use App\Http\Controllers\LoginController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\StrukController;
 use App\Models\Product;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\StrukController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -40,6 +41,10 @@ Route::middleware('auth')->group(function () {
         return view('admin');
     })->middleware('cek.role:admin')->name('admin');
 
+    // <-- PERBAIKAN 2: Ditambahkan ; di akhir baris & ditambahkan Route POST untuk proses upload
+    Route::get('/upload', [FileUploadController::class, 'create'])->name('file.upload.form');
+    Route::post('/upload', [FileUploadController::class, 'upload'])->name('file.upload');
+
     Route::resource('products', ProductController::class)
         ->middleware('cek.role:admin');
 
@@ -56,6 +61,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/struk/cetak', [StrukController::class, 'index'])
         ->middleware('cek.role:kasir')->name('struk.cetak.form');
 
+    Route::get('/orders/{order}/invoice', [StrukController::class, 'invoice'])
+        ->name('orders.invoice');
+
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
@@ -63,9 +71,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/logout', [LoginController::class, 'logout'])
         ->name('logout');
 
-        Route::get('/login', function () {
-    return view('welcome'); // atau halaman login Anda
-})->name('login');
+    // PERBAIKAN 3: Route login yang duplikat di bagian bawah ini sudah dihapus
 });
 
 require __DIR__.'/auth.php';
