@@ -1,4 +1,5 @@
 import './bootstrap';
+import './realtime-notifications';
 
 import Alpine from 'alpinejs';
 

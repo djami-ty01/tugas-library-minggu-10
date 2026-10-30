@@ -25,7 +25,7 @@
     <div class="container">
         <h1>Tambah Produk</h1>
 
-        <form action="{{ route('products.store') }}" method="POST">
+        <form action="{{ route('products.store') }}" method="POST" enctype="multipart/form-data">
             @csrf
 
             <div class="field">
@@ -59,8 +59,9 @@
             </div>
 
             <div class="field">
-                <label for="image">Gambar</label>
-                <input id="image" name="image" type="text" value="{{ old('image') }}" placeholder="Nama file gambar (opsional)">
+                <label for="image">Pilih Gambar Produk</label>
+                <input id="image" name="image" type="file" accept="image/*">
+                <small>Opsional, maksimal 2 MB.</small>
                 @error('image') <div class="error">{{ $message }}</div> @enderror
             </div>
 

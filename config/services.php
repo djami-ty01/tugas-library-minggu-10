@@ -37,6 +37,10 @@ return [
 
     'receipt' => [
         'printer' => env('RECEIPT_PRINTER', 'MP80MPro'),
+        'printers' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', env('RECEIPT_PRINTERS', env('RECEIPT_PRINTER', 'MP80MPro')))
+        ))),
         'enabled' => env('RECEIPT_PRINT_ENABLED', true),
     ],
 

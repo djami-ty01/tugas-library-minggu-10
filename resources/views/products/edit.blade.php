@@ -25,7 +25,7 @@
     <div class="container">
         <h1>Edit Produk</h1>
 
-        <form action="{{ route('products.update', $product) }}" method="POST">
+        <form action="{{ route('products.update', $product) }}" method="POST" enctype="multipart/form-data">
             @csrf
             @method('PUT')
 
@@ -60,8 +60,12 @@
             </div>
 
             <div class="field">
-                <label for="image">Gambar</label>
-                <input id="image" name="image" type="text" value="{{ old('image', $product->image) }}" placeholder="Nama file gambar (opsional)">
+                <label for="image">Pilih Gambar Produk</label>
+                @if ($product->image)
+                    <img src="{{ asset('storage/'.$product->image) }}" alt="Gambar {{ $product->name }}" style="display:block;max-width:180px;max-height:180px;margin-bottom:8px;">
+                @endif
+                <input id="image" name="image" type="file" accept="image/*">
+                <small>Kosongkan jika tidak ingin mengganti gambar. Maksimal 2 MB.</small>
                 @error('image') <div class="error">{{ $message }}</div> @enderror
             </div>
 

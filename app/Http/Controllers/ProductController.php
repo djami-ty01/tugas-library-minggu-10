@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use RuntimeException;
 
 class ProductController extends Controller
 {
@@ -38,9 +40,15 @@ class ProductController extends Controller
             'description' => ['nullable', 'string'],
             'price' => ['required', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
-            'image' => ['nullable', 'string', 'max:255'],
+            'image' => ['nullable', 'image', 'max:2048'],
             'is_active' => ['nullable', 'boolean'],
         ]);
+
+        if ($image = $this->storeProductImage($request)) {
+            $validated['image'] = $image;
+        } else {
+            unset($validated['image']);
+        }
 
         $validated['is_active'] = $request->has('is_active');
 
@@ -76,13 +84,24 @@ class ProductController extends Controller
             'description' => ['nullable', 'string'],
             'price' => ['required', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
-            'image' => ['nullable', 'string', 'max:255'],
+            'image' => ['nullable', 'image', 'max:2048'],
             'is_active' => ['nullable', 'boolean'],
         ]);
+
+        $previousImage = $product->image;
+        if ($image = $this->storeProductImage($request)) {
+            $validated['image'] = $image;
+        } else {
+            unset($validated['image']);
+        }
 
         $validated['is_active'] = $request->has('is_active');
 
         $product->update($validated);
+
+        if ($product->image !== $previousImage) {
+            $this->deleteProductImage($previousImage);
+        }
 
         return redirect()->route('products.index')->with('success', 'Product berhasil diperbarui.');
     }
@@ -92,8 +111,32 @@ class ProductController extends Controller
      */
     public function destroy(Product $product): RedirectResponse
     {
+        $image = $product->image;
         $product->delete();
 
+        $this->deleteProductImage($image);
+
         return redirect()->route('products.index')->with('success', 'Product berhasil dihapus.');
+    }
+
+    private function storeProductImage(Request $request): ?string
+    {
+        if (! $request->hasFile('image')) {
+            return null;
+        }
+
+        $path = $request->file('image')->store('products', 'public');
+        if ($path === false) {
+            throw new RuntimeException('Gambar produk gagal disimpan.');
+        }
+
+        return $path;
+    }
+
+    private function deleteProductImage(?string $path): void
+    {
+        if ($path && str_starts_with($path, 'products/') && ! Storage::disk('public')->delete($path)) {
+            throw new RuntimeException('Gambar produk gagal dihapus.');
+        }
     }
 }

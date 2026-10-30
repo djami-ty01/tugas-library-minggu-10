@@ -13,7 +13,7 @@
 <body>
     <div class="header">
         <h2>INVOICE</h2>
-        <p>No: {{ $invoice->id }}</p>
+        <p>No: {{ $invoice->receipt_number }}</p>
         <p>Tanggal: {{ $invoice->created_at->format('d/m/Y') }}</p>
     </div>
 
@@ -29,10 +29,10 @@
         <tbody>
             @foreach($invoice->items as $item)
             <tr>
-                <td>{{ $item->product->name }}</td>
-                <td>Rp {{ number_format($item->price, 0, ',', '.') }}</td>
+                <td>{{ $item->product_name }}</td>
+                <td>Rp {{ number_format($item->unit_price, 0, ',', '.') }}</td>
                 <td>{{ $item->quantity }}</td>
-                <td>Rp {{ number_format($item->total, 0, ',', '.') }}</td>
+                <td>Rp {{ number_format($item->subtotal, 0, ',', '.') }}</td>
             </tr>
             @endforeach
         </tbody>

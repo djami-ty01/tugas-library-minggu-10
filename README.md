@@ -57,3 +57,18 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Notifikasi Transaksi Real-Time
+
+Aplikasi memakai Laravel Reverb dan Laravel Echo untuk mengirim notifikasi transaksi baru ke halaman admin dan kasir melalui private channel `orders`.
+
+1. Pastikan dependensi Composer dan npm sudah terpasang, lalu jalankan `php artisan reverb:install` untuk membuat kredensial Reverb lokal di `.env`.
+2. Jalankan migrasi database dengan `php artisan migrate`.
+3. Jalankan `composer dev` untuk menyalakan server Laravel, worker antrean, Vite, dan Reverb.
+4. Buka halaman admin dan kasir di browser. Transaksi yang berhasil dibayar akan tersimpan bersama rincian barang, memperbarui stok, dan mengirim notifikasi setelah penyimpanan selesai.
+
+Untuk produksi, gunakan kredensial Reverb yang unik dan alamat WebSocket yang dapat dijangkau browser; jangan gunakan kredensial lokal.
+
+### Cetak struk dan pilih printer
+
+Setelah pembayaran, kasir dapat memilih **Pilih Printer Browser** untuk membuka dialog cetak dan memilih printer Windows, atau memilih printer struk ESC/POS dari daftar **RECEIPT_PRINTERS**. Isi `.env` dengan nama printer Windows yang sudah terpasang, pisahkan beberapa nama dengan koma, lalu jalankan `php artisan config:clear` setelah mengubahnya. Contoh: `RECEIPT_PRINTERS=MP80MPro,Printer Kasir 2`. Transaksi tidak dikirim otomatis ke printer; pencetakan dilakukan setelah kasir memilih tombol cetak.

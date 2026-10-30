@@ -2,18 +2,23 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\OrderPlaced;
+use App\Models\Order;
 use App\Models\Product;
 use App\Services\WindowsEscpos;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Exception;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
-use Mike42\Escpos\Printer;
-use Mike42\Escpos\PrintConnectors\WindowsPrintConnector;
-use Barryvdh\DomPDF\Facade\Pdf;
+use Throwable;
+
 class StrukController extends Controller
 {
     public function index(): RedirectResponse
@@ -21,7 +26,7 @@ class StrukController extends Controller
         return redirect()->route('kasir');
     }
 
-    public function print(Request $request, WindowsEscpos $windowsEscpos): View|RedirectResponse
+    public function print(Request $request): View|RedirectResponse|JsonResponse
     {
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
@@ -31,75 +36,103 @@ class StrukController extends Controller
         ]);
 
         $quantities = collect($validated['items'])->keyBy('id');
-        $products = Product::query()
-            ->whereIn('id', $quantities->keys())
-            ->where('is_active', true)
-            ->get()
-            ->keyBy('id');
-
-        if ($products->count() !== $quantities->count()) {
-            throw ValidationException::withMessages([
-                'items' => 'Salah satu produk sudah tidak aktif. Muat ulang halaman kasir.',
-            ]);
-        }
-
-        foreach ($products as $product) {
-            if ((int) $quantities->get($product->id)['qty'] > $product->stock) {
-                throw ValidationException::withMessages([
-                    'items' => "Stok {$product->name} tidak mencukupi.",
-                ]);
-            }
-        }
-
-        $items = $products->map(function (Product $product) use ($quantities): array {
-            $qty = (int) $quantities->get($product->id)['qty'];
-            $unitPrice = (float) $product->price;
-
-            return [
-                'name' => $product->name,
-                'qty' => $qty,
-                'price' => $unitPrice,
-                'subtotal' => $unitPrice * $qty,
-            ];
-        })->values();
-
-        $total = $items->sum('subtotal');
         $payment = (float) $validated['payment'];
 
-        if ($payment < $total) {
-            return back()
-                ->withInput()
-                ->withErrors(['payment' => 'Uang yang dibayar belum cukup.']);
-        }
+        $transaction = DB::transaction(function () use ($quantities, $payment, $request): array {
+            $products = Product::query()
+                ->whereIn('id', $quantities->keys())
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
 
-        $receiptNumber = 'TRX-'.now()->format('Ymd-His').'-'.Str::upper(Str::random(4));
-        $printedAt = now();
+            if ($products->count() !== $quantities->count()) {
+                throw ValidationException::withMessages([
+                    'items' => 'Salah satu produk sudah tidak aktif. Muat ulang halaman kasir.',
+                ]);
+            }
+
+            foreach ($products as $product) {
+                if ((int) $quantities->get($product->id)['qty'] > $product->stock) {
+                    throw ValidationException::withMessages([
+                        'items' => "Stok {$product->name} tidak mencukupi.",
+                    ]);
+                }
+            }
+
+            $items = $products->map(function (Product $product) use ($quantities): array {
+                $quantity = (int) $quantities->get($product->id)['qty'];
+                $unitPrice = (float) $product->price;
+
+                return [
+                    'product_id' => $product->id,
+                    'name' => $product->name,
+                    'qty' => $quantity,
+                    'price' => $unitPrice,
+                    'subtotal' => $unitPrice * $quantity,
+                ];
+            })->values();
+
+            $total = $items->sum('subtotal');
+            if ($payment < $total) {
+                throw ValidationException::withMessages([
+                    'payment' => 'Uang yang dibayar belum cukup.',
+                ]);
+            }
+
+            $printedAt = now();
+            $receiptNumber = 'TRX-'.$printedAt->format('Ymd-His').'-'.Str::upper(Str::random(4));
+            $order = Order::create([
+                'receipt_number' => $receiptNumber,
+                'user_id' => $request->user()->id,
+                'total_amount' => $total,
+                'payment_amount' => $payment,
+                'change_amount' => $payment - $total,
+                'paid_at' => $printedAt,
+            ]);
+
+            $order->items()->createMany($items->map(fn (array $item): array => [
+                'product_id' => $item['product_id'],
+                'product_name' => $item['name'],
+                'quantity' => $item['qty'],
+                'unit_price' => $item['price'],
+                'subtotal' => $item['subtotal'],
+            ])->all());
+
+            foreach ($products as $product) {
+                $product->decrement('stock', (int) $quantities->get($product->id)['qty']);
+            }
+
+            return compact('order', 'items', 'total', 'printedAt', 'receiptNumber');
+        });
+
+        $order = $transaction['order'];
+        $items = $transaction['items'];
+        $total = $transaction['total'];
+        $printedAt = $transaction['printedAt'];
+        $receiptNumber = $transaction['receiptNumber'];
         $printerError = null;
 
-        if (config('services.receipt.enabled')) {
-            try {
-                $windowsEscpos->printReceipt(
-                    config('services.receipt.printer'),
-                    $receiptNumber,
-                    $items->all(),
-                    $total,
-                    $payment,
-                    $payment - $total,
-                    $request->user()->name,
-                    $printedAt->format('d-m-Y H:i:s')
-                );
-            } catch (Exception $exception) {
-                Log::error('Gagal mencetak struk ke printer kasir.', [
-                    'printer' => config('services.receipt.printer'),
-                    'receipt_number' => $receiptNumber,
-                    'exception' => $exception->getMessage(),
-                ]);
+        $broadcastError = null;
+        try {
+            event(new OrderPlaced(
+                orderId: $order->id,
+                receiptNumber: $receiptNumber,
+                total: (float) $order->total_amount,
+                cashierName: $request->user()->name,
+            ));
+        } catch (Throwable $exception) {
+            Log::error('Gagal mengirim notifikasi transaksi melalui Reverb.', [
+                'order_id' => $order->id,
+                'receipt_number' => $receiptNumber,
+                'exception' => $exception->getMessage(),
+            ]);
 
-                $printerError = 'Cetak langsung gagal: '.$exception->getMessage();
-            }
+            $broadcastError = 'Notifikasi real-time gagal dikirim. Pastikan server Reverb sedang berjalan.';
         }
 
-        return view('struk', [
+        $receiptData = [
             'receiptNumber' => $receiptNumber,
             'items' => $items,
             'total' => $total,
@@ -108,27 +141,86 @@ class StrukController extends Controller
             'cashier' => $request->user()->name,
             'printedAt' => $printedAt,
             'printerError' => $printerError,
-        ]);
-    }
-    public function invoice(Order $order)
-{
-    $order = Order::with('items.product', 'customer')->findOrFail($order->id);
+            'broadcastError' => $broadcastError,
+            'order' => $order,
+        ];
 
-    // normalize fields expected by the invoice view
-    // invoice view expects $invoice->items[*]->total and $invoice->total
-    $invoice = $order;
-    foreach ($invoice->items as $item) {
-        // ensure 'total' key exists on each item
-        if (!isset($item->total)) {
-            $item->total = $item->subtotal ?? ($item->price * $item->quantity);
+        if ($request->expectsJson()) {
+            return response()->json([
+                'receiptHtml' => view('partials.receipt-content', $receiptData)->render(),
+                'receiptNumber' => $receiptNumber,
+                'invoiceDownloadUrl' => route('orders.invoice.download', $order),
+                'printUrl' => route('orders.print', $order),
+                'printerError' => $printerError,
+                'broadcastError' => $broadcastError,
+            ]);
         }
+
+        return view('struk', $receiptData);
     }
 
-    $invoice->total = $invoice->total_amount ?? 0;
+    public function printOrder(Request $request, Order $order, WindowsEscpos $windowsEscpos): JsonResponse
+    {
+        $validated = $request->validate([
+            'printer' => ['required', 'string', Rule::in(config('services.receipt.printers', []))],
+        ]);
 
-    $pdf = Pdf::loadView('invoices.invoice', ['invoice' => $invoice]);
+        if (! config('services.receipt.enabled')) {
+            return response()->json([
+                'message' => 'Cetak langsung belum diaktifkan. Gunakan dialog cetak browser.',
+            ], 422);
+        }
 
-    return $pdf->download('invoice_' . $invoice->id . '.pdf');
-}
-    
+        $order->load(['items', 'cashier']);
+        $items = $order->items->map(fn ($item): array => [
+            'name' => $item->product_name,
+            'qty' => $item->quantity,
+            'price' => (float) $item->unit_price,
+            'subtotal' => (float) $item->subtotal,
+        ])->all();
+
+        try {
+            $windowsEscpos->printReceipt(
+                $validated['printer'],
+                $order->receipt_number,
+                $items,
+                (float) $order->total_amount,
+                (float) $order->payment_amount,
+                (float) $order->change_amount,
+                $order->cashier->name,
+                $order->paid_at->format('d-m-Y H:i:s')
+            );
+        } catch (Exception $exception) {
+            Log::error('Gagal mencetak struk ke printer kasir.', [
+                'printer' => $validated['printer'],
+                'order_id' => $order->id,
+                'receipt_number' => $order->receipt_number,
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return response()->json([
+                'message' => 'Cetak gagal. Periksa nama printer dan koneksi printer yang dipilih.',
+            ], 422);
+        }
+
+        return response()->json(['message' => 'Struk berhasil dikirim ke printer.']);
+    }
+
+    public function invoice(Order $order)
+    {
+        return $this->makeInvoicePdf($order)->stream('invoice_'.$order->receipt_number.'.pdf');
+    }
+
+    public function downloadInvoice(Order $order)
+    {
+        return $this->makeInvoicePdf($order)->download('invoice_'.$order->receipt_number.'.pdf');
+    }
+
+    private function makeInvoicePdf(Order $order)
+    {
+        $order->load('items');
+        $order->total = $order->total_amount;
+
+        return Pdf::loadView('invoice.invoice', ['invoice' => $order]);
+    }
 }

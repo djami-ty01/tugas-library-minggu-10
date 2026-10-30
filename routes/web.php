@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\FileUploadController; // <-- PERBAIKAN 1: Impor Controller Upload
 use App\Http\Controllers\LoginController;
@@ -7,7 +8,11 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\StrukController;
 use App\Models\Product;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
+
+Broadcast::routes(['middleware' => ['web', 'auth']]);
+require __DIR__.'/channels.php';
 
 Route::get('/', function () {
     return view('welcome');
@@ -37,9 +42,8 @@ Route::middleware('auth')->group(function () {
         };
     })->name('dashboard');
 
-    Route::get('/admin', function () {
-        return view('admin');
-    })->middleware('cek.role:admin')->name('admin');
+    Route::get('/admin', [AdminController::class, 'index'])
+        ->middleware('cek.role:admin')->name('admin');
 
     // <-- PERBAIKAN 2: Ditambahkan ; di akhir baris & ditambahkan Route POST untuk proses upload
     Route::get('/upload', [FileUploadController::class, 'create'])->name('file.upload.form');
@@ -58,11 +62,15 @@ Route::middleware('auth')->group(function () {
         ->middleware('cek.role:kasir')->name('struk.index');
     Route::post('/struk/cetak', [StrukController::class, 'print'])
         ->middleware('cek.role:kasir')->name('struk.cetak');
+    Route::post('/orders/{order}/print', [StrukController::class, 'printOrder'])
+        ->middleware('cek.role:kasir')->name('orders.print');
     Route::get('/struk/cetak', [StrukController::class, 'index'])
         ->middleware('cek.role:kasir')->name('struk.cetak.form');
 
     Route::get('/orders/{order}/invoice', [StrukController::class, 'invoice'])
         ->name('orders.invoice');
+    Route::get('/orders/{order}/invoice/download', [StrukController::class, 'downloadInvoice'])
+        ->name('orders.invoice.download');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

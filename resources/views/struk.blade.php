@@ -18,6 +18,7 @@
         .actions { display: flex; justify-content: center; gap: 10px; margin: 18px auto; }
         .actions a, .actions button { border: 0; border-radius: 6px; padding: 10px 14px; color: #fff; background: #2563eb; text-decoration: none; font-weight: bold; cursor: pointer; }
         .actions a { background: #475569; }
+        .actions .pdf-link { background: #15803d; }
         @media print {
             @page { size: 80mm auto; margin: 4mm; }
             body { padding: 0; background: #fff; }
@@ -29,60 +30,30 @@
 </head>
 <body>
     <main class="receipt">
-        <header class="center">
-            <strong>POLIJE MART</strong><br>
-            <small>Terima kasih telah berbelanja</small>
-        </header>
-        <div class="line"></div>
-        <div class="meta"><span>No. Transaksi</span><span>{{ $receiptNumber }}</span></div>
-        <div class="meta"><span>Kasir</span><span>{{ $cashier }}</span></div>
-        <div class="meta"><span>Tanggal</span><span>{{ $printedAt->format('d-m-Y H:i:s') }}</span></div>
-        <div class="line"></div>
-
-        @foreach ($items as $item)
-            <div class="item">
-                <div>{{ $item['name'] }}</div>
-                <div class="item-total">
-                    <span>{{ $item['qty'] }} x Rp {{ number_format($item['price'], 0, ',', '.') }}</span>
-                    <strong>Rp {{ number_format($item['subtotal'], 0, ',', '.') }}</strong>
-                </div>
-            </div>
-        @endforeach
-
-        <div class="line"></div>
-        <div class="summary-row total">
-            <span>TOTAL</span>
-            <span>Rp {{ number_format($total, 0, ',', '.') }}</span>
-        </div>
-        <div class="summary-row">
-            <span>Uang Dibayar</span>
-            <span>Rp {{ number_format($payment, 0, ',', '.') }}</span>
-        </div>
-        <div class="summary-row">
-            <span>Kembalian</span>
-            <span>Rp {{ number_format($change, 0, ',', '.') }}</span>
-        </div>
-        <div class="line"></div>
-        <footer class="center"><small>Selamat berbelanja kembali</small></footer>
+        @include('partials.receipt-content')
     </main>
     @if ($printerError)
         <p class="print-status" role="alert" style="max-width:360px; margin:16px auto; color:#b91c1c; text-align:center;">
             {{ $printerError }}<br>
-            Membuka dialog cetak Windows sebagai alternatif. Pilih printer VSC MP-80M Pro jika tersedia.
+            Gunakan tombol Cetak Struk untuk membuka dialog cetak browser.
         </p>
     @else
         <p class="print-status" role="status" style="max-width:360px; margin:16px auto; color:#15803d; text-align:center;">
-            Struk berhasil dikirim ke printer.
+            Pembayaran berhasil. Dialog cetak browser akan dibuka.
+        </p>
+    @endif
+    @if ($broadcastError)
+        <p class="print-status" role="alert" style="max-width:360px; margin:16px auto; color:#b45309; text-align:center;">
+            {{ $broadcastError }}
         </p>
     @endif
     <nav class="actions">
         <a href="{{ route('kasir') }}">Kembali ke Kasir</a>
+        <a class="pdf-link" href="{{ route('orders.invoice', $order) }}" target="_blank" rel="noopener">Buka PDF</a>
         <button type="button" onclick="window.print()">Cetak Struk</button>
     </nav>
-    @if ($printerError)
-        <script>
-            window.addEventListener('load', () => window.print());
-        </script>
-    @endif
+    <script>
+        window.addEventListener('load', () => window.print());
+    </script>
 </body>
 </html>
