@@ -24,6 +24,16 @@ class CekRole
         }
 
         if ($request->user()->role !== $role) {
+            $homeRoute = match ($request->user()->role) {
+                'admin' => 'admin',
+                'kasir' => 'kasir',
+                default => null,
+            };
+
+            if ($homeRoute !== null) {
+                return redirect()->route($homeRoute);
+            }
+
             abort(403, 'Akses ditolak! Anda tidak memiliki hak akses.');
         }
 

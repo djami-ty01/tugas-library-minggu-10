@@ -18,13 +18,13 @@ class AdminMiddlewareTest extends TestCase
             ->assertRedirect(route('login'));
     }
 
-    public function test_regular_user_is_forbidden_from_admin_page(): void
+    public function test_cashier_is_redirected_to_cashier_page_from_admin_page(): void
     {
         $cashier = User::factory()->create(['role' => 'kasir']);
 
         $this->actingAs($cashier)
             ->get(route('admin'))
-            ->assertForbidden();
+            ->assertRedirect(route('kasir'));
     }
 
     public function test_admin_can_open_admin_page(): void
@@ -79,7 +79,7 @@ class AdminMiddlewareTest extends TestCase
             ->assertSee(route('orders.invoice', $order));
     }
 
-    public function test_cashier_can_open_cashier_page_but_not_admin_page(): void
+    public function test_cashier_can_open_cashier_page_and_is_redirected_from_admin_page(): void
     {
         $cashier = User::factory()->create(['role' => 'kasir']);
 
@@ -90,6 +90,15 @@ class AdminMiddlewareTest extends TestCase
 
         $this->actingAs($cashier)
             ->get(route('admin'))
-            ->assertForbidden();
+            ->assertRedirect(route('kasir'));
+    }
+
+    public function test_admin_is_redirected_to_admin_page_from_cashier_page(): void
+    {
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $this->actingAs($admin)
+            ->get(route('kasir'))
+            ->assertRedirect(route('admin'));
     }
 }
